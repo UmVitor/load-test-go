@@ -9,14 +9,13 @@ import (
 	"time"
 )
 
-// Result represents the outcome of an HTTP request
+
 type Result struct {
 	StatusCode int
 	Duration   time.Duration
 	Error      error
 }
 
-// Report contains the final statistics of the load test
 type Report struct {
 	TotalRequests      int
 	TotalDuration      time.Duration
@@ -29,21 +28,18 @@ type Report struct {
 }
 
 func main() {
-	// Parse command line arguments
 	url := flag.String("url", "", "URL of the service to test")
 	requests := flag.Int("requests", 100, "Total number of requests")
 	concurrency := flag.Int("concurrency", 10, "Number of concurrent requests")
 
 	flag.Parse()
 
-	// Validate URL parameter
 	if *url == "" {
 		fmt.Println("Error: URL is required")
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	// Validate requests and concurrency parameters
 	if *requests <= 0 {
 		fmt.Println("Error: Number of requests must be greater than 0")
 		os.Exit(1)
@@ -57,38 +53,29 @@ func main() {
 	fmt.Printf("Starting load test for %s\n", *url)
 	fmt.Printf("Total requests: %d\n", *requests)
 	fmt.Printf("Concurrency level: %d\n\n", *concurrency)
-
-	// Run the load test
+	
 	report := runLoadTest(*url, *requests, *concurrency)
 
-	// Print the report
 	printReport(report)
 }
 
 func runLoadTest(url string, totalRequests, concurrency int) Report {
-	// Create a channel to receive results
 	resultChan := make(chan Result, totalRequests)
-
-	// Create a wait group to synchronize goroutines
+	
 	var wg sync.WaitGroup
 
-	// Create a semaphore channel to limit concurrency
 	semaphore := make(chan struct{}, concurrency)
 
-	// Record start time
 	startTime := time.Now()
 
-	// Launch worker goroutines
 	for i := 0; i < totalRequests; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			// Acquire semaphore
 			semaphore <- struct{}{}
-			defer func() { <-semaphore }() // Release semaphore
-
-			// Make HTTP request and measure time
+			defer func() { <-semaphore }()
+			
 			start := time.Now()
 			resp, err := http.Get(url)
 			duration := time.Since(start)
@@ -107,17 +94,15 @@ func runLoadTest(url string, totalRequests, concurrency int) Report {
 		}()
 	}
 
-	// Wait for all goroutines to finish
 	go func() {
 		wg.Wait()
 		close(resultChan)
 	}()
 
-	// Collect results
 	report := Report{
 		TotalRequests: totalRequests,
 		StatusCodes:   make(map[int]int),
-		MinTime:       time.Hour, // Initialize with a large value
+		MinTime:       time.Hour,
 	}
 
 	var totalTime time.Duration
@@ -135,7 +120,6 @@ func runLoadTest(url string, totalRequests, concurrency int) Report {
 			report.SuccessfulRequests++
 		}
 
-		// Update min and max times
 		if result.Duration < report.MinTime {
 			report.MinTime = result.Duration
 		}
@@ -144,7 +128,6 @@ func runLoadTest(url string, totalRequests, concurrency int) Report {
 		}
 	}
 
-	// Calculate total duration and average time
 	report.TotalDuration = time.Since(startTime)
 	if totalRequests-report.FailedRequests > 0 {
 		report.AverageTime = totalTime / time.Duration(totalRequests-report.FailedRequests)
